@@ -42,7 +42,8 @@ def build_flat_sensors(
     consumption_window_meta = _nested_get(payload, "window", "consumption")
 
     _parse_estate_unit_area_sensors(sensors, payload)
-    _parse_summary(sensors, payload.get("summary"), group_units)
+    summary_window_meta = _nested_get(payload, "window", "summary")
+    _parse_summary(sensors, payload.get("summary"), group_units, summary_window_meta)
     _parse_consumption_endpoint(
         sensors,
         "heating",
@@ -91,7 +92,6 @@ def build_flat_sensors(
         },
     )
 
-    _backfill_summary_period_labels(sensors)
     _apply_sensor_presentation_defaults(sensors)
     return sensors
 
@@ -100,10 +100,13 @@ def _parse_summary(
     sensors: dict[str, dict[str, Any]],
     summary_payload: Any,
     group_units: Mapping[str, str],
+    window_meta: Any = None,
 ) -> None:
     calc = _nested_get(summary_payload, "data", "attributes", "calculation")
     if not isinstance(calc, Mapping):
         return
+    window_attributes = _window_attributes(window_meta)
+    period_label = _period_label_from_window(window_meta)
 
     section_labels = {
         "current": "Billing Period",
@@ -156,8 +159,10 @@ def _parse_summary(
                         "section": section,
                         "group": group.upper(),
                         "status": values.get("status"),
+                        "period_label": period_label,
                         "source_endpoint": "summary",
                         "description": section_descriptions.get(section, "").format(group=group_label.lower()),
+                        **window_attributes,
                     },
                 )
 
@@ -177,11 +182,13 @@ def _parse_summary(
                         "section": section,
                         "group": group.upper(),
                         "status": values.get("status"),
+                        "period_label": period_label,
                         "source_endpoint": "summary",
                         "description": (
                             section_descriptions.get(section, "").format(group=group_label.lower())
                             + " (kWh estimate)"
                         ),
+                        **window_attributes,
                     },
                 )
 
@@ -189,6 +196,7 @@ def _parse_summary(
         sensors=sensors,
         calc=calc,
         group_units=group_units,
+        window_meta=window_meta,
     )
 
 
@@ -196,11 +204,14 @@ def _add_summary_relative_comparison_sensors(
     sensors: dict[str, dict[str, Any]],
     calc: Mapping[str, Any],
     group_units: Mapping[str, str],
+    window_meta: Any = None,
 ) -> None:
     """Add summary comparisons vs building average and average tenant."""
     current = calc.get("current")
     if not isinstance(current, Mapping):
         return
+    window_attributes = _window_attributes(window_meta)
+    period_label = _period_label_from_window(window_meta)
 
     reference_specs = (
         ("real_estate_average", "building_average", "Building (Period)"),
@@ -259,8 +270,10 @@ def _add_summary_relative_comparison_sensors(
                     "reference_section": section_key,
                     "current_consumption": current_consumption,
                     "reference_consumption": reference_consumption,
+                    "period_label": period_label,
                     "source_endpoint": "summary",
                     "description": f"Absolute difference. {desc}",
+                    **window_attributes,
                 },
             )
 
@@ -280,8 +293,10 @@ def _add_summary_relative_comparison_sensors(
                     "reference_section": section_key,
                     "current_consumption": current_consumption,
                     "reference_consumption": reference_consumption,
+                    "period_label": period_label,
                     "source_endpoint": "summary",
                     "description": desc,
+                    **window_attributes,
                 },
             )
 
@@ -1367,34 +1382,6 @@ def _add_endpoint_meter_readout_totals(
             )
 
 
-def _backfill_summary_period_labels(
-    sensors: dict[str, dict[str, Any]],
-) -> None:
-    """Add ``period_label`` to summary sensors derived from comparison data."""
-    # Collect period ranges from comparison base_total sensors per group.
-    group_periods: dict[str, str] = {}  # e.g. {"H1": "Jan–Feb 2026"}
-    for key, desc in sensors.items():
-        if key.startswith("comparison_") and key.endswith("_base_total"):
-            attrs = desc.get("attributes") or {}
-            period = attrs.get("period_label")
-            group = attrs.get("group")
-            if period and group:
-                group_periods[str(group).upper()] = str(period)
-
-    if not group_periods:
-        return
-
-    for key, desc in sensors.items():
-        if not key.startswith("summary_"):
-            continue
-        attrs = desc.get("attributes")
-        if not isinstance(attrs, dict) or attrs.get("period_label"):
-            continue  # already has one
-        group = attrs.get("group")
-        if group and str(group).upper() in group_periods:
-            attrs["period_label"] = group_periods[str(group).upper()]
-
-
 def _apply_sensor_presentation_defaults(
     sensors: dict[str, dict[str, Any]],
 ) -> None:
@@ -1562,6 +1549,39 @@ def _window_attributes(window_meta: Any) -> dict[str, Any]:
         attrs["window_latest_readout_date"] = str(latest_readout_date)
 
     return attrs
+
+
+def _period_label_from_window(window_meta: Any) -> str | None:
+    """Derive a human-readable period label from the selected query window.
+
+    Examples: ``"Jan 2026"`` (same month), ``"Jan\u2013Mar 2026"`` (same year),
+    ``"Nov 2025\u2013Mar 2026"`` (cross-year).
+    """
+    selected = (
+        window_meta.get("selected_window")
+        if isinstance(window_meta, Mapping)
+        else None
+    )
+    if not isinstance(selected, Mapping):
+        return None
+    from_str = selected.get("from")
+    to_str = selected.get("to")
+    if not isinstance(from_str, str) or not isinstance(to_str, str):
+        return None
+    try:
+        from_date = dt_date.fromisoformat(from_str[:10])
+        to_date = dt_date.fromisoformat(to_str[:10])
+    except (ValueError, IndexError):
+        return None
+
+    from_label = _month_label(from_date.month)
+    to_label = _month_label(to_date.month)
+
+    if from_date.year != to_date.year:
+        return f"{from_label} {from_date.year}\u2013{to_label} {to_date.year}"
+    if from_date.month != to_date.month:
+        return f"{from_label}\u2013{to_label} {to_date.year}"
+    return f"{from_label} {from_date.year}"
 
 
 def _latest_date_string(current: Any, candidate: Any) -> str | None:
