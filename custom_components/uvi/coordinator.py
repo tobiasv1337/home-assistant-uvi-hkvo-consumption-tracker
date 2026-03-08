@@ -20,6 +20,7 @@ from .const import (
     HISTORY_BACKFILL_MAX_YEARS,
 )
 from .fetch_strategy import (
+    billing_period_window,
     candidate_month_windows,
     candidate_window_days,
     discover_monthly_comparison_groups,
@@ -265,6 +266,23 @@ class UviDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
             )
 
+        # Add full billing-period window as final fallback to cover the
+        # typical 12-month HKVO period for complete per-meter consumption.
+        bp_from_iso, bp_to_iso, bp_label = billing_period_window(today)
+        bp_key = (bp_from_iso, bp_to_iso)
+        if bp_key not in seen_windows:
+            seen_windows.add(bp_key)
+            bp_from_date = date.fromisoformat(bp_from_iso)
+            bp_to_date = date.fromisoformat(bp_to_iso)
+            window_candidates.append(
+                (
+                    bp_from_date,
+                    bp_to_date,
+                    (bp_to_date - bp_from_date).days + 1,
+                    bp_label,
+                )
+            )
+
         best_success_payload: dict[str, Any] | None = None
         best_success_attempt: dict[str, Any] | None = None
         best_latest_readout: date | None = None
@@ -344,10 +362,15 @@ class UviDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         today: date,
     ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-        """Fetch summary with month-oriented windows to match UVI semantics."""
+        """Fetch summary with billing-period window first, then month fallbacks."""
         attempts: list[dict[str, Any]] = []
 
-        for from_iso, to_iso, label in candidate_month_windows(today):
+        # Try full billing period first (covers typical 12-month HKVO period),
+        # then fall back to smaller month windows.
+        bp_from, bp_to, bp_label = billing_period_window(today)
+        windows = [(bp_from, bp_to, bp_label)] + candidate_month_windows(today)
+
+        for from_iso, to_iso, label in windows:
             results = await _run_task_batch(
                 tasks={"summary": self.api.fetch_summary(from_iso, to_iso)},
                 required=set(),

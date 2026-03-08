@@ -58,6 +58,15 @@ def candidate_month_windows(today: date) -> list[tuple[str, str, str]]:
     ]
 
 
+def billing_period_window(today: date) -> tuple[str, str, str]:
+    """Return a window covering the current calendar-year billing period.
+
+    HKVO billing periods follow the calendar year (Jan 1 - Dec 31).
+    """
+    year_start = date(today.year, 1, 1)
+    return (year_start.isoformat(), today.isoformat(), "billing_period")
+
+
 def discover_monthly_comparison_groups(payload: Mapping[str, Any]) -> list[str]:
     """Discover monthly-comparison groups from endpoint payloads."""
     groups: set[str] = set()
