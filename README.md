@@ -1,7 +1,6 @@
 # UVI HKVO Consumption Tracker
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
-[![Open your Home Assistant instance and start setting up this integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=uvi)
 
 Home Assistant custom integration for UVI tenant portals.
 
@@ -39,11 +38,12 @@ It logs into the tenant portal, fetches consumption data, and publishes dynamic 
 
 ## Installation (HACS)
 
-1. Open HACS.
-2. Add this repository as a Custom Repository (`Integration` type).
-3. Install `UVI Consumption`.
-4. Restart Home Assistant.
-5. Add integration: `Settings -> Devices & Services -> Add Integration -> UVI Consumption`.
+1. Open HACS → Integrations.
+2. Click the three-dot menu (top right) → **Custom repositories**.
+3. Enter `https://github.com/tobiasv1337/home-assistant-uvi-hkvo-consumption-tracker` and select type **Integration**. Click **Add**.
+4. Search for `UVI HKVO Consumption Tracker` and install it.
+5. Restart Home Assistant.
+6. Go to **Settings → Devices & Services → Add Integration** and search for `UVI HKVO`.
 
 ## Configuration
 
