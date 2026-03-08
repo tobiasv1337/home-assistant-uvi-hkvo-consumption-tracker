@@ -236,12 +236,28 @@ class UviDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         fetcher: Callable[[str, str], Awaitable[dict[str, Any]]],
         today: date,
     ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-        """Fetch one consumption endpoint with adaptive + month windows."""
+        """Fetch one consumption endpoint with billing-period-first strategy.
+
+        The billing-period window (Jan 1 – today) is tried first so that
+        month_by_month data covers complete calendar months.  Adaptive and
+        month windows serve as progressively smaller fallbacks.
+        """
         attempts: list[dict[str, Any]] = []
 
         window_candidates: list[tuple[date, date, int, str]] = []
         seen_windows: set[tuple[str, str]] = set()
 
+        # 1. Full billing-period window first → complete month data.
+        bp_from_iso, bp_to_iso, bp_label = billing_period_window(today)
+        bp_from_date = date.fromisoformat(bp_from_iso)
+        bp_to_date = date.fromisoformat(bp_to_iso)
+        bp_key = (bp_from_iso, bp_to_iso)
+        seen_windows.add(bp_key)
+        window_candidates.append(
+            (bp_from_date, bp_to_date, (bp_to_date - bp_from_date).days + 1, bp_label)
+        )
+
+        # 2. Adaptive windows as fallback (smallest first).
         for days in candidate_window_days(today):
             from_date, to_date = window_dates(today=today, days=days)
             key = (from_date.isoformat(), to_date.isoformat())
@@ -250,6 +266,7 @@ class UviDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             seen_windows.add(key)
             window_candidates.append((from_date, to_date, days, f"adaptive_{days}d"))
 
+        # 3. Month windows as additional fallback.
         for from_iso, to_iso, label in candidate_month_windows(today):
             from_date = date.fromisoformat(from_iso)
             to_date = date.fromisoformat(to_iso)
@@ -263,23 +280,6 @@ class UviDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     to_date,
                     (to_date - from_date).days + 1,
                     label,
-                )
-            )
-
-        # Add full billing-period window as final fallback to cover the
-        # typical 12-month HKVO period for complete per-meter consumption.
-        bp_from_iso, bp_to_iso, bp_label = billing_period_window(today)
-        bp_key = (bp_from_iso, bp_to_iso)
-        if bp_key not in seen_windows:
-            seen_windows.add(bp_key)
-            bp_from_date = date.fromisoformat(bp_from_iso)
-            bp_to_date = date.fromisoformat(bp_to_iso)
-            window_candidates.append(
-                (
-                    bp_from_date,
-                    bp_to_date,
-                    (bp_to_date - bp_from_date).days + 1,
-                    bp_label,
                 )
             )
 
