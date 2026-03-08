@@ -92,6 +92,7 @@ def build_flat_sensors(
         },
     )
 
+    _deduplicate_cross_endpoint_meters(sensors)
     _apply_sensor_presentation_defaults(sensors)
     return sensors
 
@@ -1380,6 +1381,62 @@ def _add_endpoint_meter_readout_totals(
                     **dict(window_attributes or {}),
                 },
             )
+
+
+def _deduplicate_cross_endpoint_meters(
+    sensors: dict[str, dict[str, Any]],
+) -> None:
+    """Remove duplicate meter sensors that appear across endpoints.
+
+    Combo water meters are reported by the UVI API in both the warm_water
+    and cold_water endpoints with identical data.  We keep only the first
+    occurrence (warm_water is parsed before cold_water) and drop the later
+    duplicate to avoid confusing users with two identical entities.
+    """
+    # Group meter sensor keys by their physical meter_id.
+    by_meter_id: dict[int, list[str]] = {}
+    for key, desc in sensors.items():
+        if not key.startswith("meter_"):
+            continue
+        attrs = desc.get("attributes")
+        if not isinstance(attrs, dict):
+            continue
+        meter_id = attrs.get("meter_id")
+        if meter_id is not None:
+            by_meter_id.setdefault(int(meter_id), []).append(key)
+
+    for _meter_id, keys in by_meter_id.items():
+        if len(keys) <= 1:
+            continue
+
+        # Group by sensor suffix (consumption, readout_total, normalized_kwh)
+        by_suffix: dict[str, list[str]] = {}
+        for key in keys:
+            # e.g. meter_52624593_w1_consumption → consumption
+            suffix = key.rsplit("_", 1)[-1] if "_" in key else key
+            by_suffix.setdefault(suffix, []).append(key)
+
+        for _suffix, suffix_keys in by_suffix.items():
+            if len(suffix_keys) <= 1:
+                continue
+            # Compare values — only deduplicate when they are truly identical.
+            first_key = suffix_keys[0]
+            first_val = sensors[first_key].get("native_value")
+            for dup_key in suffix_keys[1:]:
+                dup_val = sensors[dup_key].get("native_value")
+                if dup_val == first_val:
+                    # Record which endpoints contributed to the kept sensor.
+                    kept_attrs = sensors[first_key].get("attributes", {})
+                    dup_attrs = sensors[dup_key].get("attributes", {})
+                    dup_endpoint = dup_attrs.get("source_endpoint")
+                    dup_group = dup_attrs.get("group")
+                    also_reported = kept_attrs.get("also_reported_by", [])
+                    if dup_endpoint and dup_group:
+                        also_reported.append(
+                            {"endpoint": dup_endpoint, "group": dup_group}
+                        )
+                    kept_attrs["also_reported_by"] = also_reported
+                    del sensors[dup_key]
 
 
 def _apply_sensor_presentation_defaults(

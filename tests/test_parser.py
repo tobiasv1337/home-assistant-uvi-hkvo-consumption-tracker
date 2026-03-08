@@ -471,3 +471,64 @@ def test_incomplete_month_via_flag_only() -> None:
     assert "comparison_k1_current_month_delta_percent" in sensors
     attrs = sensors["comparison_k1_current_month_delta_percent"]["attributes"]
     assert attrs["month"] == 1
+
+
+@pytest.mark.offline
+def test_combo_meter_deduplication() -> None:
+    """Same physical meter appearing in warm_water and cold_water should be deduplicated."""
+    shared_meter = {
+        "id": 9999,
+        "identifier": "COMBO-9999",
+        "consumption": "3.859",
+        "first_readout_value": "24.651",
+        "last_readout_value": "28.510",
+        "last_readout_date": "2026-02-28",
+        "k_total_coefficient": "1.0",
+        "consumption_without_k_total_coefficient": "3.859",
+        "status": "calculation",
+        "start_date": "2024-01-01 00:00:00 UTC",
+        "end_date": None,
+        "normalized_kwh_consumption": "113.741",
+    }
+
+    def _endpoint(group: str) -> dict:
+        return {
+            "data": {
+                "attributes": {
+                    "calculation": {
+                        "detailed": {
+                            "bath": {
+                                group: {
+                                    "name": "Bath",
+                                    "meters": [dict(shared_meter)],
+                                }
+                            }
+                        },
+                    }
+                }
+            }
+        }
+
+    payload = {
+        "warm_water": _endpoint("W1"),
+        "cold_water": _endpoint("K1"),
+        "estate_units": {"data": []},
+    }
+
+    sensors = build_flat_sensors(payload)
+
+    # Only the warm_water variant should survive (parsed first).
+    assert "meter_combo_9999_w1_consumption" in sensors
+    assert "meter_combo_9999_k1_consumption" not in sensors
+
+    # The kept sensor should record where the duplicate came from.
+    attrs = sensors["meter_combo_9999_w1_consumption"]["attributes"]
+    assert attrs.get("also_reported_by") == [
+        {"endpoint": "cold_water", "group": "K1"}
+    ]
+
+    # Same for readout_total and normalized_kwh.
+    assert "meter_combo_9999_w1_readout_total" in sensors
+    assert "meter_combo_9999_k1_readout_total" not in sensors
+    assert "meter_combo_9999_w1_normalized_kwh" in sensors
+    assert "meter_combo_9999_k1_normalized_kwh" not in sensors
