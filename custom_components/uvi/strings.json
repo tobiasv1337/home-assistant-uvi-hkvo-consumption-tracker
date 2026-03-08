@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add UVI HKVO account",
+        "description": "Connect Home Assistant to your UVI tenant portal account.",
+        "data": {
+          "name": "Name",
+          "base_url": "Base URL",
+          "email": "Email",
+          "password": "Password",
+          "update_interval_minutes": "Update interval (minutes)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate UVI HKVO",
+        "description": "Update your UVI credentials.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the UVI portal.",
+      "invalid_auth": "Invalid login credentials.",
+      "unknown": "Unexpected error. Check logs for details."
+    },
+    "abort": {
+      "already_configured": "This account is already configured.",
+      "reauth_successful": "Reauthentication successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "UVI HKVO options",
+        "description": "Adjust polling behavior.",
+        "data": {
+          "update_interval_minutes": "Update interval (minutes)"
+        }
+      }
+    }
+  }
+}

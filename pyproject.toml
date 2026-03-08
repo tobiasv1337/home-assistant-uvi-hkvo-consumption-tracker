@@ -1,0 +1,30 @@
+[project]
+name = "uvi-hacs-integration"
+version = "0.1.0"
+description = "Home Assistant custom integration for UVI consumption portals"
+readme = "README.md"
+requires-python = ">=3.12"
+
+[project.optional-dependencies]
+dev = [
+  "aiohttp>=3.9.0",
+  "pytest>=8.0.0",
+  "ruff>=0.6.0",
+]
+
+[tool.ruff]
+line-length = 119
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "PL"]
+ignore = ["PLR0913", "PLR2004", "PLC0415", "PLR0912", "PLR0915"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+  "offline: local tests without real portal access",
+  "online: tests against real UVI portal credentials from .env",
+]

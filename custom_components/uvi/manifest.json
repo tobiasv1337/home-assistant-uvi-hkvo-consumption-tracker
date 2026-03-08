@@ -1,0 +1,19 @@
+{
+  "domain": "uvi",
+  "name": "UVI HKVO Consumption Tracker",
+  "icon": "mdi:home-thermometer-outline",
+  "codeowners": [
+    "@tobiasv1337"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/tobiasv1337/home-assistant-uvi-hkvo-consumption-tracker",
+  "homeassistant": "2024.6.0",
+  "issue_tracker": "https://github.com/tobiasv1337/home-assistant-uvi-hkvo-consumption-tracker/issues",
+  "iot_class": "cloud_polling",
+  "integration_type": "hub",
+  "loggers": [
+    "custom_components.uvi"
+  ],
+  "requirements": [],
+  "version": "0.1.0"
+}

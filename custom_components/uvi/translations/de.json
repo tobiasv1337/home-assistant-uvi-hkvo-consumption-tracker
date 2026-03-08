@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "UVI HKVO Konto hinzufügen",
+        "description": "Verbinde Home Assistant mit deinem UVI Mieterportal.",
+        "data": {
+          "name": "Name",
+          "base_url": "Basis URL",
+          "email": "E-Mail",
+          "password": "Passwort",
+          "update_interval_minutes": "Aktualisierungsintervall (Minuten)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "UVI HKVO erneut authentifizieren",
+        "description": "Aktualisiere deine UVI Zugangsdaten.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zum UVI Portal fehlgeschlagen.",
+      "invalid_auth": "Ungültige Zugangsdaten.",
+      "unknown": "Unerwarteter Fehler. Bitte Logs prüfen."
+    },
+    "abort": {
+      "already_configured": "Dieses Konto ist bereits eingerichtet.",
+      "reauth_successful": "Erneute Anmeldung erfolgreich."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "UVI HKVO Optionen",
+        "description": "Polling Verhalten anpassen.",
+        "data": {
+          "update_interval_minutes": "Aktualisierungsintervall (Minuten)"
+        }
+      }
+    }
+  }
+}
