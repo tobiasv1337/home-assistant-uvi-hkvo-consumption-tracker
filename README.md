@@ -10,9 +10,10 @@ It logs into the tenant portal, fetches consumption data, and publishes dynamic 
 
 - Config Flow setup in Home Assistant UI
 - CSRF + cookie-based portal login
-- Adaptive date-window fetch strategy for sparse readout updates
+- Billing-period-first fetch strategy with adaptive fallback for sparse readout schedules
 - Dynamic group discovery (not limited to fixed `h1/k1/w1` assumptions)
 - Multiple meter support per group
+- Combo meter deduplication — meters appearing in multiple endpoints (e.g. warm + cold water) are published only once
 - Per-meter sensors: period consumption, absolute meter reading (`total_increasing`), and energy (kWh, where available)
 - Aggregated readout total sensors per group (e.g. `heating_meters_h1_readout_total`) — ready for the HA Energy Dashboard
 - Aggregated energy total sensors in kWh (e.g. `heating_meters_h1_energy_total`) — `total_increasing` + `device_class: energy`, directly usable in the Energy Dashboard Gas section
@@ -32,7 +33,8 @@ It logs into the tenant portal, fetches consumption data, and publishes dynamic 
 - Monthly-comparison totals/deltas with full month series in attributes (instead of one entity per month)
 - Historical monthly-comparison backfill (best effort)
 - Rich `description` attribute on every sensor explaining what it means
-- `period_label` attributes on time-dependent sensors (e.g. "Jan-Feb 2026", "Feb 2026 vs Feb 2025")
+- `period_label` attributes on time-dependent sensors, derived from the actual API query window (e.g. "Jan-Feb 2026", "Feb 2026 vs Feb 2025")
+- `window_from` / `window_to` attributes on consumption and summary sensors showing the exact date range queried
 - Configurable update interval (default: once per day)
 - Core sensors enabled by default; advanced/diagnostic sensors disabled by default (can be enabled in Entity Registry)
 
@@ -72,7 +74,9 @@ Default is `1440` minutes (once daily).
 
 ## Data Strategy
 
-Each consumption endpoint (`heating`, `warm-water`, `cold-water`) probes windows in increasing size (`1, 2, 3, 7, 14, 30` days, then month fallback) independently, so one endpoint can use a wider window without reducing detail for the others.
+Each consumption endpoint (`heating`, `warm-water`, `cold-water`) first tries the **full billing-period window** (calendar year: Jan 1 – today). If the API returns no data for that range, the integration falls back to an adaptive probing strategy with increasingly wider windows (`1, 2, 3, 7, 14, 30` days, then per-month). Each endpoint is fetched independently, so one can use a wider window without reducing detail for the others.
+
+Summary endpoints also use the billing-period window first, with month-by-month fallback.
 
 The selected query window is attached as sensor attributes (`window_from`, `window_to`, `window_label`, `window_selection_reason`) so you can see exactly which API range produced the current values.
 
@@ -80,7 +84,7 @@ On initial setup, monthly-comparison history is backfilled year-by-year (best ef
 
 ## Sensor Overview
 
-Every sensor has a `description` attribute explaining what it represents and a `period_label` where applicable (e.g. "Feb 2026", "Jan-Feb 2026 vs Jan-Feb 2025").
+Every sensor has a `description` attribute explaining what it represents and a `period_label` where applicable (e.g. "Feb 2026", "Jan-Feb 2026 vs Jan-Feb 2025"). Consumption and summary sensors also carry `window_from` / `window_to` attributes showing the exact date range queried from the API.
 
 ### Enabled by default (core sensors)
 
